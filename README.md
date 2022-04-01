@@ -17,3 +17,9 @@ Das IP-Ranges sollten im Format: 1.1.1.1-2.2.2.2 sein.
 ``` bash
 grep -i "nginx" deep-web.txt
 ```
+
+# Starten
+Im Terminal und im richtigen Ordner ausführen:
+``` bash
+python3 deep-web-scanner.py
+```
