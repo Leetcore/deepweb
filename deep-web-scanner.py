@@ -12,7 +12,6 @@ from bs4 import BeautifulSoup
 import argparse
 
 folder = os.path.dirname(__file__)
-visited_pages = []
 output_strings = []
 ports = [80, 443, 8080, 8081, 8443, 4434]
 keywords = ["cam", "rasp", " hp ", "system", "index of", "dashboard"]
@@ -23,7 +22,10 @@ def main():
     print("----------------------------")
     print("      Deep Web Scanner!     ")
     print("----------------------------\n")
-    print("Scan gestarted:")
+    print("Every webserver response will be logged in a file.")
+    print("This terminal will only show the following keywords: " + ", ".join(keywords))
+    print("Scan will start...")
+
     with open(input_file, "r") as myfile:
         content = myfile.readlines()
         
@@ -33,12 +35,13 @@ def main():
                 ip_range_array = line.split("-")
                 ip_range_start = ip_range_array[0].strip()
                 ip_range_end = ip_range_array[1].strip()
+                print(f"Start scan from range: {ip_range_start} - {ip_range_end}")
 
                 current_ip = ipaddress.IPv4Address(ip_range_start)
                 end_ip = ipaddress.IPv4Address(ip_range_end)
 
                 with ThreadPoolExecutor(max_workers=1000) as executor:
-                    while current_ip <= end_ip:
+                    while current_ip < end_ip:
                         executor.submit(start_checking, current_ip.exploded)
                         current_ip += 1
                 executor.shutdown(wait=True)
@@ -50,7 +53,7 @@ def start_checking(ip):
     # fast webserver port checking
     for port in ports:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.settimeout(2)
+            sock.settimeout(1)
             result = sock.connect_ex((ip, port))
             if result == 0:
                 # start normal browser request
@@ -77,37 +80,29 @@ def start_request(ip, port):
 def request_url(url):
     # request url and return the response
     try:
-        if url not in visited_pages:
-            session = requests.session()
-            session.headers[
-                "User-Agent"
-            ] = "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.152 Safari/537.36"
-            header = session.head(url=url, timeout=3, verify=False)
-            
-            # ignore 404 and error pages
-            if header.status_code >= 400:
+        session = requests.session()
+        session.headers[
+            "User-Agent"
+        ] = "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.152 Safari/537.36"
+        header = session.head(url=url, timeout=10, verify=False)
+
+        # check content type
+        one_allowed_content_type = False
+        content_type_header = header.headers.get("content-type")
+        if content_type_header is not None:
+            for allowed_content_type in ["html", "plain", "xml", "text", "json"]:
+                if allowed_content_type in content_type_header.lower():
+                    one_allowed_content_type = True
+            if not one_allowed_content_type:
                 return False
-
-            # check content type
-            one_allowed_content_type = False
-            content_type_header = header.headers.get("content-type")
-            if content_type_header is not None:
-                for allowed_content_type in ["html", "plain", "xml", "text", "json"]:
-                    if allowed_content_type in content_type_header.lower():
-                        one_allowed_content_type = True
-                if not one_allowed_content_type:
-                    return False
-            else:
-                return False
-
-            response = session.get(url=url, timeout=3, verify=False)
-            session.close()
-
-            soup = BeautifulSoup(response.text, "html.parser")
-            visited_pages.append(url)
-            return (response, soup)
         else:
             return False
+
+        response = session.get(url=url, timeout=15, verify=False)
+        session.close()
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        return (response, soup)
     except Exception as e:
         return False
 
@@ -134,6 +129,18 @@ def get_banner(request, soup):
         password_fields = soup.find_all(attrs={"type": "password"})
         if len(password_fields) > 0:
             banner_array.append("login required")
+    except Exception as e:
+        print(e)
+
+    # check for "index of" websites and show root files/folders
+    try:
+        global indexof
+        if indexof.lower() == "true" and "index of" in request.text.lower():
+            a_array = soup.find_all("a")
+            for a in a_array:
+                if a.attrs.get("href"):
+                    if a.attrs.get("href").find("?") != 0:
+                        banner_array.append(a.attrs.get("href"))
     except Exception as e:
         print(e)
 
@@ -168,7 +175,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "-o", type=str, default="./deep-web.txt", help="Path to output file"
     )
+    parser.add_argument(
+        "-indexof", type=str, default="no", help="Show files from index of sites"
+    )
     args = parser.parse_args()
     input_file = args.i
     output_file = args.o
+    indexof = args.indexof
     main()

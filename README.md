@@ -7,19 +7,30 @@ Aber in der Logdatei sind alle erreichten Websites drin.
 Die gleichen Ergebnisse können mit der Internetsuchmaschine Shodan oder teilweise
 auch mit Google erreicht werden.
 
-# Ip-Adressen
+## Ip-Adressen
 Die Eingabedatei ist eine CSV-Datei, die IP-Adressen aus Deutschland enthält.
 Das IP-Ranges sollten im Format: 1.1.1.1-2.2.2.2 sein.
 
-# Suche
+## Suche
 Über die Textdatei lässt sich schnell mit `grep`suchen.
 
 ``` bash
 grep -i "nginx" deep-web.txt
 ```
 
-# Starten
-Im Terminal und im richtigen Ordner ausführen:
+## Starten
+Startet den Scanner mit Standardwerten. Im Terminal und im richtigen Ordner ausführen:
 ``` bash
 python3 deep-web-scanner.py
+```
+
+Optionen:
+* -i input.txt: Eingabedatei
+* -o output.txt: Ausgabedatei
+* -indexof true: Logs index of files (default: False)
+
+## "Index of"
+Diese Option zeigt verfügbare Dateien an: `-indexof true`:
+``` bash
+python3 deep-web-scanner.py -indexof true
 ```
