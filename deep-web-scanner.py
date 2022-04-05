@@ -24,6 +24,8 @@ def main():
     print("----------------------------\n")
     print("Every webserver response will be logged in a file.")
     print("This terminal will only show the following keywords: " + ", ".join(keywords))
+    if indexof.lower() == "true":
+        print ("Index of filenames will be logged!")
     print("Scan will start...")
 
     with open(input_file, "r") as myfile:

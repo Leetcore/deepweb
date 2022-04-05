@@ -8,7 +8,7 @@ Die gleichen Ergebnisse können mit der Internetsuchmaschine Shodan oder teilwei
 auch mit Google erreicht werden.
 
 ## Ip-Adressen
-Die Eingabedatei ist eine CSV-Datei, die IP-Adressen aus Deutschland enthält.
+Die Eingabedatei ist eine CSV, die IP-Adressen aus Deutschland enthält.
 Das IP-Ranges sollten im Format: 1.1.1.1-2.2.2.2 sein.
 
 ## Suche
