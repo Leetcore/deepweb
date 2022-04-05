@@ -162,10 +162,10 @@ def write_line(line, force=False):
     global output_tmp, last_write
     output_tmp += line + "\n"
     if last_write + 30 < time.time() or force:
+        last_write = time.time()
         with open(output_file, "a") as output_1:
             output_1.write(output_tmp)
             output_tmp = ""
-            last_write = time.time()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
