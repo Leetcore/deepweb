@@ -146,6 +146,8 @@ def get_banner(request, soup):
     except Exception as e:
         print(e)
 
+    banner_array.append(len(request.content))
+
     fullstring = ", ".join(str(item) for item in banner_array)
     if fullstring not in output_strings:
         output_strings.append(fullstring)
@@ -153,6 +155,8 @@ def get_banner(request, soup):
             if keyword in fullstring.lower():
                 if "login required" in fullstring:
                     print(colorama.Fore.RED + fullstring)
+                elif "Index of /" in fullstring:
+                    print(colorama.Fore.YELLOW + fullstring)
                 else:
                     print(colorama.Fore.GREEN + fullstring)
         write_line(fullstring)
