@@ -3,12 +3,9 @@
 #
 # Erstellt die Dateien "screenshots/IndexOf/2.56.98.169.jpeg" usw.
 #
+
 input_file=$1
 output_dir=./screenshots/$2
-
-echo "Your Input was:"
-echo "$input_file as input_file"
-echo "$output_dir as output_dir"
 
 if [ -d "$output_dir" ] 
 then 
