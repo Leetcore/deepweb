@@ -3,4 +3,5 @@ screenshot.log
 .vscode/launch.json
 logs/*
 screenshots/*
+node_modules/*
 input.txt
