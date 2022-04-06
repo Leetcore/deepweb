@@ -20,8 +20,8 @@ while IFS= read -r line; do
   index=$(echo $line | cut -d ',' -f 1)  
   # Ergibt: https://2.56.98.169/
   
-  output_file=$(echo $line | cut -d '/' -f 1,2,3 | cut -d '/' -f 3)
-  # Ergibt: 2.56.98.169
+  output_file=$(echo $line | cut -d '/' -f 1,2,3 | sed -r 's/[://]+/_/g')
+  # Ergibt: http_2.56.98.169 oder https_2.56.98.169
 
   output_path=$output_dir/$output_file.jpeg
   # Ergibt: ./screenshots/
