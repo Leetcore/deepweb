@@ -160,7 +160,7 @@ def get_banner(request: requests.Response, soup: bs4.BeautifulSoup):
     except Exception as e:
         print(e)
 
-    banner_array.append(len(request.content))
+    banner_array.append(str(len(request.content)))
 
     fullstring = ", ".join(str(item) for item in banner_array)
     if fullstring not in output_strings:
