@@ -1,6 +1,8 @@
+import threading
 import ipaddress
 import socket
 import time
+from typing import Optional, Union
 import requests
 requests.packages.urllib3.disable_warnings()  # type: ignore
 from concurrent.futures import ThreadPoolExecutor
@@ -8,24 +10,26 @@ import colorama
 
 colorama.init(autoreset=True)
 import os
-from bs4 import BeautifulSoup
+import bs4
 import argparse
 
 folder = os.path.dirname(__file__)
-output_strings = []
+output_strings: list[str] = []
 ports = [80, 443, 8080, 8081, 8443, 4434]
 keywords = ["cam", "rasp", " hp ", "system", "index of", "dashboard"]
 output_tmp = ""
 last_write = time.time()
+global_lock = threading.Lock()
+banner_targets: list[dict[str, Union[str, int]]] = []
 
 def main():
     print("----------------------------")
     print("      Deep Web Scanner!     ")
     print("----------------------------\n")
-    print("Every webserver response will be logged in a file.")
-    print("This terminal will only show the following keywords: " + ", ".join(keywords))
+    print("Every active webserver url will be logged in the output file.")
+    print("This terminal will only show urls/metadata with the following keywords: " + ", ".join(keywords))
     if indexof.lower() == "true":
-        print ("Index of filenames will be logged!")
+        print ("'Index of /' filenames will be logged!")
     print("Scan will start...")
 
     with open(input_file, "r") as myfile:
@@ -42,26 +46,35 @@ def main():
                 current_ip = ipaddress.IPv4Address(ip_range_start)
                 end_ip = ipaddress.IPv4Address(ip_range_end)
 
-                with ThreadPoolExecutor(max_workers=1000) as executor:
+                with ThreadPoolExecutor(max_workers=10) as executor_portcheck:
                     while current_ip < end_ip:
-                        executor.submit(start_checking, current_ip.exploded)
+                        executor_portcheck.submit(start_portcheck, current_ip.exploded)
                         current_ip += 1
-                executor.shutdown(wait=True)
+                executor_portcheck.shutdown(wait=True)
+
+                global banner_targets
+                print(f"{len(banner_targets)} responses")
+                with ThreadPoolExecutor(max_workers=3) as executor_request:
+                    for target in banner_targets:
+                        executor_request.submit(start_request, target["ip"], target["port"])  # type: ignore
+                executor_request.shutdown(wait=True)
+                banner_targets.clear()
             else:
                 print("No valid input file! Should be something like 2.56.20.0-2.56.23.255 per line!")
         write_line("", True)
 
-def start_checking(ip):
+def start_portcheck(ip: str):
+    global banner_targets
     # fast webserver port checking
     for port in ports:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             sock.settimeout(1)
             result = sock.connect_ex((ip, port))
             if result == 0:
-                # start normal browser request
-                start_request(ip, port)
+                # queue normal browser request
+                banner_targets.append({"ip": ip, "port": port})
         
-def start_request(ip, port):
+def start_request(ip: str, port: int):
     # check for running websites
     try:
         url = "https://" + ip + ":" + str(port)
@@ -75,11 +88,11 @@ def start_request(ip, port):
         site_result = request_url(url)
         if site_result is not False:
             # if the site is reachable get some information
-            get_banner(site_result[0], site_result[1])
+            get_banner(site_result[0], site_result[1])  # type: ignore
     except Exception as e:
         print(e)
 
-def request_url(url):
+def request_url(url: str) -> Union[tuple[requests.Response, bs4.BeautifulSoup], bool]:
     # request url and return the response
     try:
         session = requests.session()
@@ -103,19 +116,20 @@ def request_url(url):
         response = session.get(url=url, timeout=15, verify=False)
         session.close()
 
-        soup = BeautifulSoup(response.text, "html.parser")
+        soup = bs4.BeautifulSoup(response.text, "html.parser")
         return (response, soup)
-    except Exception as e:
+    except Exception:
         return False
 
-def get_banner(request, soup):
+def get_banner(request: requests.Response, soup: bs4.BeautifulSoup):
     # get banner information, show console output and save them to file
-    banner_array = []
+    banner_array: list[str] = []
     banner_array.append(request.url)
-    banner_array.append(request.headers.get("Server"))
+    if request.headers.get("Server") is not None:
+        banner_array.append(request.headers.get("Server"))  # type: ignore
     try:
         if soup.find("title"):
-            title = soup.find("title").get_text().strip().replace("\n", "")
+            title = soup.find("title").get_text().strip().replace("\n", "") # type: ignore
         else:
             title = ""
         banner_array.append(title)
@@ -157,15 +171,30 @@ def get_banner(request, soup):
                     print(colorama.Fore.GREEN + fullstring)
         write_line(fullstring)
 
-def write_line(line, force=False):
+def write_line(line: str, force: Optional[bool] = False):
     # buffers and writes output to file
     global output_tmp, last_write
     output_tmp += line + "\n"
+
     if last_write + 30 < time.time() or force:
         last_write = time.time()
+
+        while global_lock.locked():
+            continue
+
+        global_lock.acquire()
+
+        lines_to_write = output_tmp.count("\n")
         with open(output_file, "a") as output_1:
             output_1.write(output_tmp)
             output_tmp = ""
+
+        if lines_to_write > 1:
+            print(f"{lines_to_write} webservers found and written to file")
+        else:
+            print(f"{lines_to_write} webserver found and written to file")
+
+        global_lock.release()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(

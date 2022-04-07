@@ -9,7 +9,8 @@ auch mit Google erreicht werden.
 
 ## Ip-Adressen
 Die Eingabedatei ist eine CSV, die IP-Adressen aus Deutschland enthält.
-Das IP-Ranges sollten im Format: 1.1.1.1-2.2.2.2 sein.
+Das IP-Ranges sollten im Format: 1.1.1.1-2.2.2.2 sein. Die IP-Adressen stammen 
+von diesem Projekt: https://github.com/sapics/ip-location-db
 
 ## Suche
 Über die Textdatei lässt sich schnell mit `grep`suchen.
