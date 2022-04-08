@@ -46,18 +46,17 @@ def main():
                 current_ip = ipaddress.IPv4Address(ip_range_start)
                 end_ip = ipaddress.IPv4Address(ip_range_end)
 
-                with ThreadPoolExecutor(max_workers=10) as executor_portcheck:
+                with ThreadPoolExecutor(max_workers=1000) as executor_portcheck:
                     while current_ip < end_ip:
                         executor_portcheck.submit(start_portcheck, current_ip.exploded)
                         current_ip += 1
-                executor_portcheck.shutdown(wait=True)
 
                 global banner_targets
                 print(f"{len(banner_targets)} responses")
                 with ThreadPoolExecutor(max_workers=3) as executor_request:
                     for target in banner_targets:
                         executor_request.submit(start_request, target["ip"], target["port"])  # type: ignore
-                executor_request.shutdown(wait=True)
+                    executor_request.shutdown(wait=True)
                 banner_targets.clear()
             else:
                 print("No valid input file! Should be something like 2.56.20.0-2.56.23.255 per line!")
@@ -68,7 +67,7 @@ def start_portcheck(ip: str):
     # fast webserver port checking
     for port in ports:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.settimeout(1)
+            sock.settimeout(5)
             result = sock.connect_ex((ip, port))
             if result == 0:
                 # queue normal browser request
@@ -99,7 +98,7 @@ def request_url(url: str) -> Union[tuple[requests.Response, bs4.BeautifulSoup], 
         session.headers[
             "User-Agent"
         ] = "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.152 Safari/537.36"
-        header = session.head(url=url, timeout=10, verify=False)
+        header = session.head(url=url, timeout=20, verify=False)
 
         # check content type
         one_allowed_content_type = False
@@ -113,7 +112,7 @@ def request_url(url: str) -> Union[tuple[requests.Response, bs4.BeautifulSoup], 
         else:
             return False
 
-        response = session.get(url=url, timeout=15, verify=False)
+        response = session.get(url=url, timeout=30, verify=False)
         session.close()
 
         soup = bs4.BeautifulSoup(response.text, "html.parser")
@@ -160,7 +159,7 @@ def get_banner(request: requests.Response, soup: bs4.BeautifulSoup):
     except Exception as e:
         print(e)
 
-    banner_array.append(str(len(request.content)))
+    banner_array.append(f"{str(len(request.content))} content size")
 
     fullstring = ", ".join(str(item) for item in banner_array)
     if fullstring not in output_strings:
