@@ -41,7 +41,7 @@ def main():
                 ip_range_array = line.split("-")
                 ip_range_start = ip_range_array[0].strip()
                 ip_range_end = ip_range_array[1].strip()
-                print(f"Start scan from range: {ip_range_start} - {ip_range_end}")
+                print(f"[*] Start scan from range: {ip_range_start} - {ip_range_end}")
 
                 current_ip = ipaddress.IPv4Address(ip_range_start)
                 end_ip = ipaddress.IPv4Address(ip_range_end)
@@ -52,7 +52,7 @@ def main():
                         current_ip += 1
 
                 global banner_targets
-                print(f"{len(banner_targets)} responses")
+                print(f"[*] got {len(banner_targets)} responses")
                 with ThreadPoolExecutor(max_workers=3) as executor_request:
                     for target in banner_targets:
                         executor_request.submit(start_request, target["ip"], target["port"])  # type: ignore
@@ -193,9 +193,9 @@ def write_line(line: str, force: Optional[bool] = False):
             output_tmp = ""
 
         if lines_to_write > 1:
-            print(f"{colorama.Fore.BLUE} {lines_to_write} webservers found and written to file")
+            print(f"{colorama.Fore.BLUE} [*] {lines_to_write} webservers found and written to file")
         else:
-            print(f"{colorama.Fore.BLUE} {lines_to_write} webserver found and written to file")
+            print(f"{colorama.Fore.BLUE} [*] {lines_to_write} webservers found and written to file")
 
         global_lock.release()
 
