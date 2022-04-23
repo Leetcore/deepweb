@@ -12,11 +12,10 @@ Die Eingabedatei ist eine CSV, die IP-Adressen aus Deutschland enthält.
 Das IP-Ranges sollten im Format: 1.1.1.1-2.2.2.2 sein. Die IP-Adressen stammen 
 von diesem Projekt: https://github.com/sapics/ip-location-db
 
-## Suche
-Über die Textdatei lässt sich schnell mit `grep`suchen.
-
+## Installation
+Installiere die benötigten Pakete:
 ``` bash
-grep -i "nginx" deep-web.txt
+pip3 install -r requirements.txt
 ```
 
 ## Starten
@@ -34,4 +33,11 @@ Optionen:
 Diese Option zeigt verfügbare Dateien an: `-indexof true`:
 ``` bash
 python3 deep-web-scanner.py -indexof true
+```
+
+## Suche
+Über die Textdatei lässt sich schnell mit `grep`suchen.
+
+``` bash
+grep -i "nginx" deep-web.txt
 ```
