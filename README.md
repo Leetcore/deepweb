@@ -12,6 +12,19 @@ Die Eingabedatei ist eine CSV, die IP-Adressen aus Deutschland enthält.
 Das IP-Ranges sollten im Format: 1.1.1.1-2.2.2.2 sein. Die IP-Adressen stammen 
 von diesem Projekt: https://github.com/sapics/ip-location-db
 
+## Vorraussetzung
+* Python 3.9
+
+Wenn du auf Python 3.8 bist, kannst du Python 3.9 parallel installieren. Dann 
+muss die gewünschte Version explizit angegeben werden. `python3` bleibt weiterhin
+die Version 3.8:
+
+``` bash
+sudo apt install python3.9
+python3.9 -m pip install -r requirements.txt
+python3.9 deep-web-scanner.py
+```
+
 ## Installation
 Installiere die benötigten Pakete:
 ``` bash
