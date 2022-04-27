@@ -1,10 +1,9 @@
 # Deep Web Scanner
 Dieses Script findet Websites, die per IPv4-Adresse erreichbar sind und speichert
-deren Metadaten. Die Ausgabe im Terminal wird nach bestimmten Keywords gefiltert.
+deren Metadaten. Die Ausgabe im Terminal wird nach bestimmten Keywords gefiltert, 
+aber in der Logdatei sind alle erreichten Websites drin.
 
 Was findet man damit? Webcams, Nischen-Projekte und interessante Hobby-Projekte.
-
-Aber in der Logdatei sind alle erreichten Websites drin.
 
 Die gleichen Ergebnisse können mit der Internetsuchmaschine Shodan oder teilweise
 auch mit Google erreicht werden.
