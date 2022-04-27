@@ -7,7 +7,6 @@ import requests
 requests.packages.urllib3.disable_warnings()  # type: ignore
 from concurrent.futures import ThreadPoolExecutor
 import colorama
-
 colorama.init(autoreset=True)
 import os
 import bs4
@@ -62,7 +61,7 @@ def main():
                 print("No valid input file! Should be something like 2.56.20.0-2.56.23.255 per line!")
         write_line("", True)
 
-def start_portcheck(ip: str):
+def start_portcheck(ip: str) -> None:
     global banner_targets
     # fast webserver port checking
     for port in ports:
@@ -73,7 +72,7 @@ def start_portcheck(ip: str):
                 # queue normal browser request
                 banner_targets.append({"ip": ip, "port": port})
         
-def start_request(ip: str, port: int):
+def start_request(ip: str, port: int) -> None:
     # check for running websites
     try:
         url = "https://" + ip + ":" + str(port)
@@ -85,9 +84,9 @@ def start_request(ip: str, port: int):
             url = "http://" + ip + ":8081"
 
         site_result = request_url(url)
-        if site_result is not False:
+        if not isinstance(site_result, bool) and site_result is not False:
             # if the site is reachable get some information
-            get_banner(site_result[0], site_result[1])  # type: ignore
+            get_banner(site_result[0], site_result[1])
     except Exception as e:
         print(e)
 
@@ -124,44 +123,41 @@ def get_banner(request: requests.Response, soup: bs4.BeautifulSoup):
     # get banner information, show console output and save them to file
     banner_array: list[str] = []
     banner_array.append(request.url)
-    if request.headers.get("Server") is not None:
-        banner_array.append(request.headers.get("Server"))  # type: ignore
-    try:
-        if soup.find("title"):
-            title = soup.find("title").get_text().strip().replace("\n", "") # type: ignore
-        else:
-            title = ""
-        banner_array.append(title)
-        meta_tags = soup.find_all("meta", attrs={"name": "generator"})
+    server_header = request.headers.get("Server")
+    if isinstance(server_header, str):
+        banner_array.append(server_header)
+        title = soup.find("title")
+        if isinstance(title, bs4.Tag):
+            title = title.get_text().strip().replace("\n", "")
+            banner_array.append(title)
+        
+        meta_tags: bs4.element.ResultSet[bs4.Tag] = soup.find_all("meta", attrs={"name": "generator"})
         if len(meta_tags) > 0:
             for meta_tag in meta_tags:
-                banner_array.append(meta_tag.attrs.get("content"))
-    except Exception as e:
-        print(e)
+                attrs = meta_tag.attr
+                if isinstance(attrs, bs4.Tag):
+                    generator = attrs.get("content")
+                    if isinstance(generator, str):
+                        banner_array.append(generator)
 
     # has this site a password field?
-    try:
-        password_fields = soup.find_all(attrs={"type": "password"})
-        if len(password_fields) > 0:
-            banner_array.append("login required")
-    except Exception as e:
-        print(e)
+    password_fields = soup.find_all(attrs={"type": "password"})
+    if len(password_fields) > 0:
+        banner_array.append("login required")
 
     # check for "index of" websites and show root files/folders
-    try:
-        global indexof
-        if indexof.lower() == "true" and "index of" in request.text.lower():
-            a_array = soup.find_all("a")
-            for a in a_array:
-                if a.attrs.get("href"):
-                    if a.attrs.get("href").find("?") != 0:
-                        banner_array.append(a.attrs.get("href"))
-    except Exception as e:
-        print(e)
+    global indexof
+    if indexof.lower() == "true" and "index of" in request.text.lower():
+        a_array: list[bs4.Tag] = soup.find_all("a")
+        for a in a_array:
+            href = a.attrs.get("href")
+            if isinstance(href, str):
+                if href.find("?") != 0:
+                    banner_array.append(href)
 
     banner_array.append(f"{str(len(request.content))} content size")
 
-    fullstring = ", ".join(str(item) for item in banner_array)
+    fullstring = ", ".join(banner_array)
     if fullstring not in output_strings:
         output_strings.append(fullstring)
         for keyword in keywords:
