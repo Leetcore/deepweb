@@ -45,20 +45,24 @@ def main():
                 current_ip = ipaddress.IPv4Address(ip_range_start)
                 end_ip = ipaddress.IPv4Address(ip_range_end)
 
-                with ThreadPoolExecutor(max_workers=1000) as executor_portcheck:
+                with ThreadPoolExecutor(max_workers=100) as executor_portcheck:
                     while current_ip < end_ip:
                         executor_portcheck.submit(start_portcheck, current_ip.exploded)
                         current_ip += 1
 
-                global banner_targets
-                print(f"{len(banner_targets)} responses")
-                with ThreadPoolExecutor(max_workers=3) as executor_request:
-                    for target in banner_targets:
-                        executor_request.submit(start_request, target["ip"], target["port"])  # type: ignore
-                    executor_request.shutdown(wait=True)
-                banner_targets.clear()
+            elif "/" in line:
+                ip_range = ipaddress.ip_network(line.strip())
+                with ThreadPoolExecutor(max_workers=100) as executor_portcheck:
+                    for ip in ip_range.hosts():
+                        executor_portcheck.submit(start_portcheck, ip.exploded)
             else:
                 print("No valid input file! Should be something like 2.56.20.0-2.56.23.255 per line!")
+
+            global banner_targets
+            print(f"{len(banner_targets)} responses")
+            for target in banner_targets:
+                start_request(target["ip"], target["port"])  # type: ignore
+            banner_targets.clear()
         write_line("", True)
 
 def start_portcheck(ip: str) -> None:
@@ -66,7 +70,7 @@ def start_portcheck(ip: str) -> None:
     # fast webserver port checking
     for port in ports:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.settimeout(5)
+            sock.settimeout(3)
             result = sock.connect_ex((ip, port))
             if result == 0:
                 # queue normal browser request
