@@ -29,7 +29,7 @@ while IFS= read -r line; do
 
   if [[ -f "$output_path" ]]  
   then
-    echo "Screenshot of $index already exists. Skipping ..."
+    continue
     
   else
     

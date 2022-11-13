@@ -2,16 +2,20 @@ import threading
 import ipaddress
 import socket
 import time
+from datetime import datetime
 from typing import Optional, Union
 import requests
 requests.packages.urllib3.disable_warnings()  # type: ignore
 from concurrent.futures import ThreadPoolExecutor
 import colorama
+import random
 
 colorama.init(autoreset=True)
 import os
 import bs4
 import argparse
+
+
 
 folder = os.path.dirname(__file__)
 output_strings: list[str] = []
@@ -36,33 +40,41 @@ def main():
         content = myfile.readlines()
         
         for line in content:
+            now = datetime.now()
+            current_time = now.strftime("%H:%M:%S")
+            line = random.choice(content)
             # split ip range 2.56.20.0-2.56.23.255
             if "-" in line:
                 ip_range_array = line.split("-")
                 ip_range_start = ip_range_array[0].strip()
                 ip_range_end = ip_range_array[1].strip()
-                print(f"[*] Start scan from range: {ip_range_start} - {ip_range_end}")
+                print(f"[*] {current_time} - Start scan from range: {ip_range_start} - {ip_range_end}")
 
                 current_ip = ipaddress.IPv4Address(ip_range_start)
                 end_ip = ipaddress.IPv4Address(ip_range_end)
 
-                with ThreadPoolExecutor(max_workers=1000) as executor_portcheck:
+                with ThreadPoolExecutor(max_workers=150) as executor_portcheck:
                     while current_ip < end_ip:
                         executor_portcheck.submit(start_portcheck, current_ip.exploded)
                         current_ip += 1
 
-                global banner_targets
-                print(f"[*] got {len(banner_targets)} responses")
-                with ThreadPoolExecutor(max_workers=3) as executor_request:
-                    for target in banner_targets:
-                        executor_request.submit(start_request, target["ip"], target["port"])  # type: ignore
-                    executor_request.shutdown(wait=True)
-                banner_targets.clear()
+            elif "/" in line:
+                ip_range = ipaddress.ip_network(line.strip())
+                with ThreadPoolExecutor(max_workers=150) as executor_portcheck:
+                    for ip in ip_range.hosts():
+                        executor_portcheck.submit(start_portcheck, ip.exploded)
+
             else:
                 print("No valid input file! Should be something like 2.56.20.0-2.56.23.255 per line!")
+                
+            global banner_targets
+            print(f"[*] {current_time} - got {len(banner_targets)} responses")
+            for target in banner_targets:
+                start_request(target["ip"], target["port"])  # type: ignore
+            banner_targets.clear()
         write_line("", True)
 
-def start_portcheck(ip: str):
+def start_portcheck(ip: str) -> None:
     global banner_targets
     # fast webserver port checking
     for port in ports:
@@ -85,7 +97,7 @@ def start_request(ip: str, port: int):
             url = "http://" + ip + ":8081"
 
         site_result = request_url(url)
-        if site_result is not False:
+        if not isinstance(site_result, bool) and site_result is not False:
             # if the site is reachable get some information
             get_banner(site_result[0], site_result[1])  # type: ignore
     except Exception as e:
@@ -121,43 +133,42 @@ def request_url(url: str) -> Union[tuple[requests.Response, bs4.BeautifulSoup], 
         return False
 
 def get_banner(request: requests.Response, soup: bs4.BeautifulSoup):
+    now = datetime.now()
+    current_time = now.strftime("%H:%M:%S")
     # get banner information, show console output and save them to file
     banner_array: list[str] = []
     banner_array.append(request.url)
-    if request.headers.get("Server") is not None:
-        banner_array.append(request.headers.get("Server"))  # type: ignore
-    try:
-        if soup.find("title"):
-            title = soup.find("title").get_text().strip().replace("\n", "") # type: ignore
-        else:
-            title = ""
-        banner_array.append(title)
-        meta_tags = soup.find_all("meta", attrs={"name": "generator"})
+    server_header = request.headers.get("Server")
+    if isinstance(server_header, str):
+        banner_array.append(server_header)
+        title = soup.find("title")
+        if isinstance(title, bs4.Tag):
+            title = title.get_text().strip().replace("\n", "")
+            banner_array.append(title)
+        
+        meta_tags: bs4.element.ResultSet[bs4.Tag] = soup.find_all("meta", attrs={"name": "generator"})
         if len(meta_tags) > 0:
             for meta_tag in meta_tags:
-                banner_array.append(meta_tag.attrs.get("content"))
-    except Exception as e:
-        print(e)
+                attrs = meta_tag.attr
+                if isinstance(attrs, bs4.Tag):
+                    generator = attrs.get("content")
+                    if isinstance(generator, str):
+                        banner_array.append(generator)
 
     # has this site a password field?
-    try:
-        password_fields = soup.find_all(attrs={"type": "password"})
-        if len(password_fields) > 0:
-            banner_array.append("login required")
-    except Exception as e:
-        print(e)
+    password_fields = soup.find_all(attrs={"type": "password"})
+    if len(password_fields) > 0:
+        banner_array.append("login required")
 
     # check for "index of" websites and show root files/folders
-    try:
-        global indexof
-        if indexof.lower() == "true" and "index of" in request.text.lower():
-            a_array = soup.find_all("a")
-            for a in a_array:
-                if a.attrs.get("href"):
-                    if a.attrs.get("href").find("?") != 0:
-                        banner_array.append(a.attrs.get("href"))
-    except Exception as e:
-        print(e)
+    global indexof
+    if indexof.lower() == "true" and "index of" in request.text.lower():
+        a_array: list[bs4.Tag] = soup.find_all("a")
+        for a in a_array:
+            href = a.attrs.get("href")
+            if isinstance(href, str):
+                if href.find("?") != 0:
+                    banner_array.append(href)
 
     banner_array.append(f"{str(len(request.content))} content size")
 
@@ -167,15 +178,17 @@ def get_banner(request: requests.Response, soup: bs4.BeautifulSoup):
         for keyword in keywords:
             if keyword in fullstring.lower():
                 if "login required" in fullstring:
-                    print(colorama.Fore.RED + fullstring)
+                    print(f"{colorama.Fore.RED}[+] {current_time} - {fullstring}")
                 elif "Index of /" in fullstring:
-                    print(colorama.Fore.YELLOW + fullstring)
+                    print(f"{colorama.Fore.YELLOW}[+] {current_time} - {fullstring}")
                 else:
-                    print(colorama.Fore.GREEN + fullstring)
+                    print(f"{colorama.Fore.GREEN}[+] {current_time} - {fullstring}")
         write_line(fullstring)
 
 def write_line(line: str, force: Optional[bool] = False):
     # buffers and writes output to file
+    now = datetime.now()
+    current_time = now.strftime("%H:%M:%S")
     global output_tmp, last_write
     output_tmp += line + "\n"
 
@@ -193,9 +206,9 @@ def write_line(line: str, force: Optional[bool] = False):
             output_tmp = ""
 
         if lines_to_write > 1:
-            print(f"{colorama.Fore.BLUE} [*] {lines_to_write} webservers found and written to file")
+            print(f"{colorama.Fore.BLUE}[*] {current_time} - {lines_to_write} webservers found and written to file")
         else:
-            print(f"{colorama.Fore.BLUE} [*] {lines_to_write} webservers found and written to file")
+            print(f"{colorama.Fore.BLUE}[*] {current_time} - {lines_to_write} webservers found and written to file")
 
         global_lock.release()
 
