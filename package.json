@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "delay": "^5.0.0",
+    "puppeteer": "^13.5.2"
+  }
+}

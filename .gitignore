@@ -5,4 +5,7 @@ logs/*
 screenshots/*
 node_modules/*
 input.txt
+nuclei_out/*
+nuclei_in/*
+cleaned_log.txt
 

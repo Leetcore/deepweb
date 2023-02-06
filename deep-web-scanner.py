@@ -19,8 +19,8 @@ import argparse
 
 folder = os.path.dirname(__file__)
 output_strings: list[str] = []
-ports = [80, 443, 8080, 8081, 8443, 4434]
-keywords = ["cam", "rasp", " hp ", "system", "index of", "dashboard"]
+ports = [80, 443, 3000, 3128, 5000, 8080, 8081, 8443, 4434]
+keywords = ["cam", "rasp", " hp ", "system", "index of", "dashboard", "webmail" ,"roundcube", "logs"]
 output_tmp = ""
 last_write = time.time()
 global_lock = threading.Lock()
@@ -74,6 +74,16 @@ def main():
             banner_targets.clear()
         write_line("", True)
 
+
+def still_running():
+    now = datetime.now()
+    current_time = now.strftime("%H:%M:%S")
+
+    while True:
+        wait = 15
+        for i in range(wait+1):
+            write_line(f"[*] {current_time} - Scan is still running")
+
 def start_portcheck(ip: str) -> None:
     global banner_targets
     # fast webserver port checking
@@ -95,6 +105,13 @@ def start_request(ip: str, port: int):
             url = "http://" + ip + ":8080"
         elif port == 8081:
             url = "http://" + ip + ":8081"
+        elif port == 3000:
+            url = "http://" + ip + ":3000"
+        elif port == 3128:
+            url = "http://" + ip + ":3128"
+        elif port == 5000:
+            url = "http://" + ip + ":5000"
+        
 
         site_result = request_url(url)
         if not isinstance(site_result, bool) and site_result is not False:
@@ -134,7 +151,7 @@ def request_url(url: str) -> Union[tuple[requests.Response, bs4.BeautifulSoup], 
 
 def get_banner(request: requests.Response, soup: bs4.BeautifulSoup):
     now = datetime.now()
-    current_time = now.strftime("%H:%M:%S")
+    current_time = now.strftime("%d.%m. - %H:%M:%S")
     # get banner information, show console output and save them to file
     banner_array: list[str] = []
     banner_array.append(request.url)
@@ -188,7 +205,7 @@ def get_banner(request: requests.Response, soup: bs4.BeautifulSoup):
 def write_line(line: str, force: Optional[bool] = False):
     # buffers and writes output to file
     now = datetime.now()
-    current_time = now.strftime("%H:%M:%S")
+    current_time = now.strftime("%d.%m. - %H:%M:%S")
     global output_tmp, last_write
     output_tmp += line + "\n"
 
