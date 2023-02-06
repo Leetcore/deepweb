@@ -8,4 +8,4 @@ input.txt
 nuclei_out/*
 nuclei_in/*
 cleaned_log.txt
-
+*.lst
