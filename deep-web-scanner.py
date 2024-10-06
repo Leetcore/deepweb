@@ -1,25 +1,28 @@
+import argparse
+import bs4
+import os
+import colorama
+from concurrent.futures import ThreadPoolExecutor
 import threading
 import ipaddress
 import socket
 import time
+import random
 from typing import Optional, Union
 import requests
 requests.packages.urllib3.disable_warnings()  # type: ignore
-from concurrent.futures import ThreadPoolExecutor
-import colorama
 colorama.init(autoreset=True)
-import os
-import bs4
-import argparse
 
 folder = os.path.dirname(__file__)
 output_strings: list[str] = []
-ports = [80, 443, 8080, 8081, 8443, 4434]
+ports = [80, 443, 8080, 8081, 4434, 3443, 8443, 3000, 4000, 5000]
+workers = len(ports) * 20
 keywords = ["cam", "rasp", " hp ", "system", "index of", "dashboard"]
 output_tmp = ""
 last_write = time.time()
 global_lock = threading.Lock()
 banner_targets: list[dict[str, Union[str, int]]] = []
+
 
 def main():
     print("----------------------------")
@@ -28,114 +31,127 @@ def main():
     print("Every active webserver url will be logged in the output file.")
     print("This terminal will only show urls/metadata with the following keywords: " + ", ".join(keywords))
     if indexof.lower() == "true":
-        print ("'Index of /' filenames will be logged!")
+        print("'Index of /' filenames will be logged!")
     print("Scan will start...")
 
     with open(input_file, "r") as myfile:
         content = myfile.readlines()
-        
+
+        # randomize this list if arg is true
+        if randomize:
+            random.shuffle(content)
+
         for line in content:
             # split ip range 2.56.20.0-2.56.23.255
             if "-" in line:
                 ip_range_array = line.split("-")
                 ip_range_start = ip_range_array[0].strip()
                 ip_range_end = ip_range_array[1].strip()
-                print(f"Start scan from range: {ip_range_start} - {ip_range_end}")
+                print(
+                    f"Start scan from range: {ip_range_start} - {ip_range_end}")
 
                 current_ip = ipaddress.IPv4Address(ip_range_start)
                 end_ip = ipaddress.IPv4Address(ip_range_end)
 
-                with ThreadPoolExecutor(max_workers=100) as executor_portcheck:
+                with ThreadPoolExecutor(max_workers=workers) as executor_portcheck:
                     while current_ip < end_ip:
-                        executor_portcheck.submit(start_portcheck, current_ip.exploded)
+                        executor_portcheck.submit(
+                            start_portcheck, current_ip.exploded)
                         current_ip += 1
 
             elif "/" in line:
                 ip_range = ipaddress.ip_network(line.strip())
-                with ThreadPoolExecutor(max_workers=100) as executor_portcheck:
+                with ThreadPoolExecutor(max_workers=workers) as executor_portcheck:
                     for ip in ip_range.hosts():
                         executor_portcheck.submit(start_portcheck, ip.exploded)
             else:
-                print("No valid input file! Should be something like 2.56.20.0-2.56.23.255 per line!")
+                print(
+                    "No valid input file! Should be something like 2.56.20.0-2.56.23.255 per line!")
 
             global banner_targets
             print(f"{len(banner_targets)} responses")
-            for target in banner_targets:
-                start_request(target["ip"], target["port"])  # type: ignore
+            with ThreadPoolExecutor(max_workers=10) as executor_getbanner:
+                for target in banner_targets:
+                    executor_getbanner.submit(
+                        start_request, target["ip"], target["port"])  # type: ignore
             banner_targets.clear()
         write_line("", True)
+
 
 def start_portcheck(ip: str) -> None:
     global banner_targets
     # fast webserver port checking
     for port in ports:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.settimeout(3)
+            sock.settimeout(2)
             result = sock.connect_ex((ip, port))
             if result == 0:
                 # queue normal browser request
                 banner_targets.append({"ip": ip, "port": port})
-        
+
+
 def start_request(ip: str, port: int) -> None:
     # check for running websites
     try:
         url = "https://" + ip + ":" + str(port)
-        if port == 80:
-            url = "http://" + ip
-        elif port == 8080:
-            url = "http://" + ip + ":8080"
-        elif port == 8081:
-            url = "http://" + ip + ":8081"
+        if str(port).__contains__("80"):
+            url = "http://" + ip + ":" + str(port)
 
         site_result = request_url(url)
         if not isinstance(site_result, bool) and site_result is not False:
             # if the site is reachable get some information
             get_banner(site_result[0], site_result[1])
     except Exception as e:
+        print(f"IP: {ip}, Port: {str(port)}")
         print(e)
+
 
 def request_url(url: str) -> Union[tuple[requests.Response, bs4.BeautifulSoup], bool]:
     # request url and return the response
-    try:
-        session = requests.session()
-        session.headers[
-            "User-Agent"
-        ] = "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.152 Safari/537.36"
-        header = session.head(url=url, timeout=20, verify=False)
+    session = requests.session()
+    session.headers[
+        "User-Agent"
+    ] = "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.152 Safari/537.36"
+    header = session.head(url=url, timeout=5, verify=False)
 
-        # check content type
-        one_allowed_content_type = False
-        content_type_header = header.headers.get("content-type")
-        if content_type_header is not None:
-            for allowed_content_type in ["html", "plain", "xml", "text", "json"]:
-                if allowed_content_type in content_type_header.lower():
-                    one_allowed_content_type = True
-            if not one_allowed_content_type:
-                return False
-        else:
+    # check content type
+    one_allowed_content_type = False
+    content_type_header = header.headers.get("content-type")
+    if content_type_header is not None:
+        for allowed_content_type in ["html", "plain", "text", "json"]:
+            if allowed_content_type in content_type_header.lower():
+                one_allowed_content_type = True
+        if not one_allowed_content_type:
             return False
+    else:
+        return False
 
-        response = session.get(url=url, timeout=30, verify=False)
-        session.close()
-
+    response = session.get(url=url, timeout=10, verify=False)
+    session.close()
+    try:
         soup = bs4.BeautifulSoup(response.text, "html.parser")
         return (response, soup)
     except Exception:
-        return False
+        soup = bs4.BeautifulSoup("", "html.parser")
+        return (response, soup)
+
 
 def get_banner(request: requests.Response, soup: bs4.BeautifulSoup):
     # get banner information, show console output and save them to file
     banner_array: list[str] = []
     banner_array.append(request.url)
-    server_header = request.headers.get("Server")
-    if isinstance(server_header, str):
-        banner_array.append(server_header)
+
+    if soup:
+        server_header = request.headers.get("Server")
+        if isinstance(server_header, str):
+            banner_array.append(server_header)
         title = soup.find("title")
         if isinstance(title, bs4.Tag):
             title = title.get_text().strip().replace("\n", "")
             banner_array.append(title)
-        
-        meta_tags: bs4.element.ResultSet[bs4.Tag] = soup.find_all("meta", attrs={"name": "generator"})
+
+        meta_tags: bs4.element.ResultSet[bs4.Tag] = soup.find_all(
+            "meta", attrs={"name": "generator"})
         if len(meta_tags) > 0:
             for meta_tag in meta_tags:
                 attrs = meta_tag.attr
@@ -144,20 +160,20 @@ def get_banner(request: requests.Response, soup: bs4.BeautifulSoup):
                     if isinstance(generator, str):
                         banner_array.append(generator)
 
-    # has this site a password field?
-    password_fields = soup.find_all(attrs={"type": "password"})
-    if len(password_fields) > 0:
-        banner_array.append("login required")
+        # has this site a password field?
+        password_fields = soup.find_all(attrs={"type": "password"})
+        if len(password_fields) > 0:
+            banner_array.append("login required")
 
-    # check for "index of" websites and show root files/folders
-    global indexof
-    if indexof.lower() == "true" and "index of" in request.text.lower():
-        a_array: list[bs4.Tag] = soup.find_all("a")
-        for a in a_array:
-            href = a.attrs.get("href")
-            if isinstance(href, str):
-                if href.find("?") != 0:
-                    banner_array.append(href)
+        # check for "index of" websites and show root files/folders
+        global indexof
+        if indexof.lower() == "true" and "index of" in request.text.lower():
+            a_array: list[bs4.Tag] = soup.find_all("a")
+            for a in a_array:
+                href = a.attrs.get("href")
+                if isinstance(href, str):
+                    if href.find("?") != 0:
+                        banner_array.append(href)
 
     banner_array.append(f"{str(len(request.content))} content size")
 
@@ -173,6 +189,7 @@ def get_banner(request: requests.Response, soup: bs4.BeautifulSoup):
                 else:
                     print(colorama.Fore.GREEN + fullstring)
         write_line(fullstring)
+
 
 def write_line(line: str, force: Optional[bool] = False):
     # buffers and writes output to file
@@ -199,6 +216,7 @@ def write_line(line: str, force: Optional[bool] = False):
 
         global_lock.release()
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Check if domain has an active website and grab banner."
@@ -210,10 +228,14 @@ if __name__ == "__main__":
         "-o", type=str, default="./deep-web.txt", help="Path to output file"
     )
     parser.add_argument(
-        "-indexof", type=str, default="no", help="Show files from index of sites"
+        "-indexof", type=str, default="true", help="Show files from index of sites"
+    )
+    parser.add_argument(
+        "-randomize", type=str, default="true", help="Randomize input list entries"
     )
     args = parser.parse_args()
     input_file = args.i
     output_file = args.o
     indexof = args.indexof
+    randomize = args.randomize
     main()
